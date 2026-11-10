@@ -1,0 +1,48 @@
+# --- Secrets (never commit) ---
+.env
+.env.*
+!.env.example
+
+# --- Private data: recordings, enrollments, saved sessions ---
+data/
+recordings/
+*.wav
+!bench/samples/*.wav
+
+# --- Models and upstream code (downloaded, see README) ---
+models/
+third_party/
+*.pt
+*.ckpt
+
+# --- Local tools / runtime ---
+.venv/
+.local-es/
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# --- Frontend build ---
+frontend/node_modules/
+frontend/dist/
+
+# --- Scratch benchmark outputs ---
+bench_smoke/
+bench_check/
+
+# --- Personal files / screenshots ---
+intrsuctions.md
+WhatsApp Image*
+*.jpeg
+*.jpg
+*.png
+*.local.*
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

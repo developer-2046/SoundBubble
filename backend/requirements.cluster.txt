@@ -1,0 +1,14 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+fastapi==0.162.2
+uvicorn==0.54.0
+python-multipart==0.0.32
+soundfile==0.14.0
+numpy==2.2.6
+torch==2.7.1
+sentence-transformers==6.2.0
+transformers==5.20.2
+faster-whisper==1.1.1
+ctranslate2==4.8.5
+elasticsearch==8.19.3
+requests==2.34.2
+huggingface-hub==2.4.0

@@ -1,0 +1,47 @@
+# Single-node Elasticsearch, cluster-internal only (ClusterIP, never exposed via the team URL).
+# Security is disabled because only the `app` pod reaches it inside the namespace.
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+spec:
+  selector: {app: elasticsearch}
+  ports: [{name: http, port: 9200, targetPort: 9200}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+spec:
+  serviceName: elasticsearch
+  replicas: 1
+  selector:
+    matchLabels: {app: elasticsearch}
+  template:
+    metadata:
+      labels: {app: elasticsearch}
+    spec:
+      securityContext: {fsGroup: 1000, runAsUser: 1000, runAsGroup: 0}
+      containers:
+        - name: elasticsearch
+          image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+          env:
+            - {name: discovery.type, value: single-node}
+            - {name: xpack.security.enabled, value: "false"}
+            - {name: xpack.ml.enabled, value: "false"}
+            - {name: node.store.allow_mmap, value: "false"}   # no vm.max_map_count tuning (no privileged init)
+            - {name: ES_JAVA_OPTS, value: "-Xms768m -Xmx768m"}
+          ports: [{containerPort: 9200}]
+          readinessProbe:
+            httpGet: {path: "/_cluster/health?local=true", port: 9200}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 500m, memory: 1536Mi}
+            limits: {cpu: "1", memory: 2Gi}
+          volumeMounts: [{name: esdata, mountPath: /usr/share/elasticsearch/data}]
+  volumeClaimTemplates:
+    - metadata: {name: esdata}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: 5Gi}}

@@ -1,0 +1,75 @@
+# SoundBubble on the team's own k3d cluster ("hackathon", arm64, Docker Desktop).
+# Image is built on the Mac and loaded with `k3d image import` (no registry).
+# Elasticsearch = Elastic Cloud (Secret soundbubble-es, created with kubectl, never in git).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: soundbubble
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: soundbubble-data
+  namespace: soundbubble
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: soundbubble
+  labels: {app: app}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: app}
+  template:
+    metadata:
+      labels: {app: app}
+    spec:
+      automountServiceAccountToken: false   # Radar investigation finding: app never calls the K8s API
+      securityContext: {runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, runAsNonRoot: true}
+      containers:
+        - name: app
+          image: soundbubble:0.1
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          env:
+            - {name: PORT, value: "8080"}
+            - {name: SB_ENABLE_TSE, value: "0"}
+            - {name: SB_DEPLOYMENT, value: k3d-hackathon}
+          envFrom:
+            - secretRef: {name: soundbubble-es}   # ES_URL, ES_API_KEY, SB_ARCHIVE_TOKEN
+          volumeMounts: [{name: data, mountPath: /data}]
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 500m, memory: 1536Mi}
+            limits: {cpu: "2", memory: 3Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: soundbubble-data}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: soundbubble
+spec:
+  selector: {app: app}
+  ports: [{name: http, port: 80, targetPort: http}]

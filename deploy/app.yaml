@@ -1,0 +1,63 @@
+# SoundBubble API/UI (search, ASR, archive). Service must be named `app`, port 80 (platform routing).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: soundbubble-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels: {app: app}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}   # RWO volume
+  selector:
+    matchLabels: {app: app}
+  template:
+    metadata:
+      labels: {app: app}
+    spec:
+      automountServiceAccountToken: false   # Radar investigation finding: app never calls the K8s API
+      securityContext: {runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, runAsNonRoot: true}
+      containers:
+        - name: app
+          image: app
+          ports: [{containerPort: 8080, name: http}]
+          env:
+            - {name: PORT, value: "8080"}
+            - {name: SB_ENABLE_TSE, value: "0"}
+            - {name: SB_DEPLOYMENT, value: kubernetes}
+            - {name: ES_URL, value: "http://elasticsearch:9200"}
+            - {name: SB_CORS, value: "http://localhost:5173"}
+            - name: SB_ARCHIVE_TOKEN
+              valueFrom:
+                secretKeyRef: {name: app-credentials, key: archive-token, optional: true}
+          volumeMounts: [{name: data, mountPath: /data}]
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 500m, memory: 1536Mi}
+            limits: {cpu: "2", memory: 3Gi}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: ["ALL"]}, seccompProfile: {type: RuntimeDefault}}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: soundbubble-data}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+spec:
+  selector: {app: app}
+  ports: [{name: http, port: 80, targetPort: http}]
